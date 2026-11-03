@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>乘除法拼图闯关</title>
+<style>
+*{box-sizing:border-box;font-family:system-ui,sans-serif}
+body{text-align:center;background:#f8faff;padding:16px;margin:0}
+h2{color:#333}
+.info{margin-bottom:12px;font-size:18px}
+.grid{
+  position:relative;
+  display:grid;
+  grid-template-columns:repeat(5, 1fr);
+  gap:6px;
+  max-width:420px;
+  margin:20px auto;
+  aspect-ratio:1/1;
+}
+#fullImage{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:8px;
+  z-index:1;
+}
+#cellsLayer{
+  position:absolute;
+  inset:0;
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:6px;
+  z-index:2;
+}
+.cell{
+  background:#999;
+  border-radius:8px;
+  cursor:pointer;
+  transition: opacity 0.35s ease;
+}
+.cell.open{
+  opacity:0;
+  pointer-events:none;
+}
+.pop{
+  position:fixed;inset:0;background:rgba(0,0,0,0.5);
+  display:none;align-items:center;justify-content:center;z-index:99
+}
+.pop-box{
+  background:white;padding:24px;border-radius:12px;width:90%;max-width:340px
+}
+.q-text{font-size:24px;margin:12px 0}
+#ans{font-size:20px;padding:8px;width:120px;text-align:center}
+.btns{margin-top:16px;display:flex;gap:10px;justify-content:center}
+button{padding:10px 16px;font-size:16px;border:none;border-radius:8px;cursor:pointer}
+#ok{background:#28a745;color:white}
+#closePop{background:#666;color:white}
+#restartBtn{
+  display:none;margin:20px auto;background:#007bff;color:white;
+  font-size:18px;padding:12px 24px
+}
+.tip{margin-top:10px;font-size:16px;color:#d93025;height:22px}
+</style>
+</head>
+<body>
+<h2>🎮 乘除法拼图闯关</h2>
+<div class="info">图案：<span id="picName">小猪</span>｜已完成：<span id="done">0</span>/25</div>
+<div class="grid">
+  <img id="fullImage" alt="完整图案">
+  <div id="cellsLayer"></div>
+</div>
+<button id="restartBtn">🔄 重新开始，换一张图</button>
+
+<div class="pop" id="pop">
+  <div class="pop-box">
+    <div class="q-text" id="question"></div>
+    <input type="number" id="ans" autofocus>
+    <div class="tip" id="tip"></div>
+    <div class="btns">
+      <button id="ok">确定</button>
+      <button id="closePop">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 图库 10套卡通
+const picList = [
+  {name:"小猪",url:"https://picsum.photos/id/237/500/500"},
+  {name:"恐龙",url:"https://picsum.photos/id/1025/500/500"},
+  {name:"公主",url:"https://picsum.photos/id/1062/500/500"},
+  {name:"小汽车",url:"https://picsum.photos/id/1072/500/500"},
+  {name:"火箭",url:"https://picsum.photos/id/1074/500/500"},
+  {name:"小猫",url:"https://picsum.photos/id/40/500/500"},
+  {name:"小狗",url:"https://picsum.photos/id/169/500/500"},
+  {name:"小熊",url:"https://picsum.photos/id/1084/500/500"},
+  {name:"小超人",url:"https://picsum.photos/id/1059/500/500"},
+  {name:"机器人",url:"https://picsum.photos/id/1060/500/500"},
+];
+let lastIndex = -1;
+let curPic = null;
+let cells = [];
+let currentCellIdx = null;
+let answerVal = 0;
+
+// 随机选图，不和上一轮重复
+function pickPic(){
+  let idx;
+  do{
+    idx = Math.floor(Math.random()*picList.length);
+  }while(idx===lastIndex && picList.length>1)
+  lastIndex = idx;
+  return picList[idx];
+}
+
+// 生成题目：随机乘法 / 整除除法
+function makeQuestion(){
+  const isMul = Math.random()>0.45;
+  if(isMul){
+    const a = Math.floor(Math.random()*9)+1;
+    const b = Math.floor(Math.random()*9)+1;
+    answerVal = a*b;
+    return {q:`${a} × ${b} = ?`, ans:answerVal}
+  }else{
+    // 除法：结果1~9，被除数1~81整除
+    const res = Math.floor(Math.random()*9)+1;
+    const b = Math.floor(Math.random()*9)+1;
+    const a = res * b;
+    answerVal = res;
+    return {q:`${a} ÷ ${b} = ?`, ans:answerVal}
+  }
+}
+
+function initGame(){
+  curPic = pickPic();
+  document.getElementById("picName").innerText = curPic.name;
+  document.getElementById("done").innerText = "0";
+  document.getElementById("restartBtn").style.display="none";
+  document.getElementById("fullImage").src = curPic.url;
+
+  const layer = document.getElementById("cellsLayer");
+  layer.innerHTML="";
+  cells=[];
+  for(let i=0;i<25;i++){
+    const div = document.createElement("div");
+    div.className="cell";
+    div.onclick = ()=>clickCell(i);
+    layer.appendChild(div);
+    cells.push(div);
+  }
+}
+
+function clickCell(idx){
+  if(cells[idx].classList.contains("open")) return;
+  currentCellIdx = idx;
+  const qObj = makeQuestion();
+  document.getElementById("question").innerText = qObj.q;
+  answerVal = qObj.ans;
+  document.getElementById("ans").value="";
+  document.getElementById("tip").innerText="";
+  document.getElementById("pop").style.display="flex";
+  document.getElementById("ans").focus();
+}
+
+function checkAnswer(){
+  const input = Number(document.getElementById("ans").value);
+  if(isNaN(input)){
+    document.getElementById("tip").innerText="请输入数字！";
+    return;
+  }
+  if(input === answerVal){
+    cells[currentCellIdx].classList.add("open");
+    document.getElementById("pop").style.display="none";
+    let cnt = document.querySelectorAll(".open").length;
+    document.getElementById("done").innerText = cnt;
+    if(cnt >=25){
+      setTimeout(()=>{
+        document.getElementById("restartBtn").style.display="block";
+      },300)
+    }
+  }else{
+    document.getElementById("tip").innerText="❌ 答错啦，再试试！";
+  }
+}
+
+document.getElementById("ok").onclick = checkAnswer;
+document.getElementById("closePop").onclick = ()=>{
+  document.getElementById("pop").style.display="none";
+}
+document.getElementById("restartBtn").onclick = initGame;
+document.getElementById("ans").onkeydown = (e)=>{
+  if(e.key==='Enter') checkAnswer();
+}
+
+initGame();
+</script>
+</body>
+</html>
+<!-- （注：内容由AI生成） -->
